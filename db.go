@@ -86,3 +86,148 @@ func upsertSession(db *sql.DB, s SessionRow) error {
 	)
 	return err
 }
+
+// ProjectSummary aggregates token usage per project.
+type ProjectSummary struct {
+	Project  string
+	Total    int
+	CachePct int
+}
+
+// ModelSummary holds percentage share per model.
+type ModelSummary struct {
+	Model string
+	Total int
+}
+
+// TopSession is one row in the top sessions list.
+type TopSession struct {
+	Day       string
+	Project   string
+	Total     int
+	Subagents int
+}
+
+// DaySummary is the aggregated summary for today or a rolling window.
+type DaySummary struct {
+	Sessions  int
+	Subagents int
+	Input     int
+	Output    int
+	CacheRead int
+	CachePct  int
+}
+
+func queryToday(db *sql.DB) (DaySummary, error) {
+	var s DaySummary
+	err := db.QueryRow(`
+		SELECT
+			COUNT(*),
+			COALESCE(SUM(subagent_count), 0),
+			COALESCE(SUM(input_tokens), 0),
+			COALESCE(SUM(output_tokens), 0),
+			COALESCE(SUM(cache_read_tokens), 0),
+			COALESCE(ROUND(100.0 * SUM(cache_read_tokens) /
+				NULLIF(SUM(input_tokens) + SUM(cache_read_tokens), 0)), 0)
+		FROM sessions
+		WHERE date(started_at) = date('now', 'localtime')
+	`).Scan(&s.Sessions, &s.Subagents, &s.Input, &s.Output, &s.CacheRead, &s.CachePct)
+	return s, err
+}
+
+func queryRolling(db *sql.DB, days int) (DaySummary, error) {
+	var s DaySummary
+	err := db.QueryRow(`
+		SELECT
+			COALESCE(SUM(input_tokens), 0),
+			COALESCE(SUM(output_tokens), 0),
+			COALESCE(SUM(cache_read_tokens), 0),
+			COALESCE(ROUND(100.0 * SUM(cache_read_tokens) /
+				NULLIF(SUM(input_tokens) + SUM(cache_read_tokens), 0)), 0)
+		FROM sessions
+		WHERE started_at >= datetime('now', printf('-%d days', ?), 'localtime')
+	`, days).Scan(&s.Input, &s.Output, &s.CacheRead, &s.CachePct)
+	return s, err
+}
+
+func queryByProject(db *sql.DB, days int) ([]ProjectSummary, error) {
+	rows, err := db.Query(`
+		SELECT
+			project,
+			COALESCE(SUM(input_tokens + cache_read_tokens), 0) AS total,
+			COALESCE(ROUND(100.0 * SUM(cache_read_tokens) /
+				NULLIF(SUM(input_tokens) + SUM(cache_read_tokens), 0)), 0) AS cache_pct
+		FROM sessions
+		WHERE started_at >= datetime('now', printf('-%d days', ?), 'localtime')
+		GROUP BY project
+		ORDER BY total DESC
+	`, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ProjectSummary
+	for rows.Next() {
+		var p ProjectSummary
+		if err := rows.Scan(&p.Project, &p.Total, &p.CachePct); err != nil {
+			return nil, err
+		}
+		results = append(results, p)
+	}
+	return results, rows.Err()
+}
+
+func queryByModel(db *sql.DB, days int) ([]ModelSummary, error) {
+	rows, err := db.Query(`
+		SELECT
+			model,
+			COALESCE(SUM(input_tokens + cache_read_tokens), 0) AS total
+		FROM sessions
+		WHERE started_at >= datetime('now', printf('-%d days', ?), 'localtime')
+		GROUP BY model
+		ORDER BY total DESC
+	`, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ModelSummary
+	for rows.Next() {
+		var m ModelSummary
+		if err := rows.Scan(&m.Model, &m.Total); err != nil {
+			return nil, err
+		}
+		results = append(results, m)
+	}
+	return results, rows.Err()
+}
+
+func queryTopSessions(db *sql.DB, days int) ([]TopSession, error) {
+	rows, err := db.Query(`
+		SELECT
+			date(started_at, 'localtime') AS day,
+			project,
+			input_tokens + cache_read_tokens AS total,
+			subagent_count
+		FROM sessions
+		WHERE started_at >= datetime('now', printf('-%d days', ?), 'localtime')
+		ORDER BY total DESC
+		LIMIT 10
+	`, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []TopSession
+	for rows.Next() {
+		var s TopSession
+		if err := rows.Scan(&s.Day, &s.Project, &s.Total, &s.Subagents); err != nil {
+			return nil, err
+		}
+		results = append(results, s)
+	}
+	return results, rows.Err()
+}

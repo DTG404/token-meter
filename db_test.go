@@ -115,3 +115,87 @@ func TestUpsertIdempotent(t *testing.T) {
 		t.Errorf("expected updated input_tokens=200, got %d", input)
 	}
 }
+
+func seedSessions(t *testing.T, db *sql.DB) {
+	t.Helper()
+	rows := []SessionRow{
+		{
+			SessionID: "s1", Project: "nexus", Model: "claude-sonnet-4-6",
+			StartedAt: "2026-04-02T08:00:00Z", EndedAt: "2026-04-02T08:30:00Z",
+			InputTokens: 10000, OutputTokens: 1000, CacheCreationTokens: 2000, CacheReadTokens: 5000,
+			SubagentCount: 2,
+		},
+		{
+			SessionID: "s2", Project: "digitalghost", Model: "claude-haiku-4-5",
+			StartedAt: "2026-04-02T09:00:00Z", EndedAt: "2026-04-02T09:15:00Z",
+			InputTokens: 500, OutputTokens: 100, CacheCreationTokens: 0, CacheReadTokens: 8000,
+			SubagentCount: 0,
+		},
+		{
+			// older session — 8 days ago, outside 7-day window
+			SessionID: "s3", Project: "nexus", Model: "claude-sonnet-4-6",
+			StartedAt: "2026-03-25T10:00:00Z", EndedAt: "2026-03-25T10:10:00Z",
+			InputTokens: 99999, OutputTokens: 9999, CacheCreationTokens: 0, CacheReadTokens: 0,
+			SubagentCount: 0,
+		},
+	}
+	for _, r := range rows {
+		if err := upsertSession(db, r); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+}
+
+func TestQueryByProject(t *testing.T) {
+	db := openTestDB(t)
+	seedSessions(t, db)
+
+	results, err := queryByProject(db, 7)
+	if err != nil {
+		t.Fatalf("queryByProject: %v", err)
+	}
+	// only s1 and s2 are within 7 days; s3 is excluded
+	if len(results) != 2 {
+		t.Fatalf("expected 2 projects, got %d", len(results))
+	}
+	// nexus: 10000+5000 = 15000 total
+	// digitalghost: 500+8000 = 8500 total
+	// nexus should be first (higher total)
+	if results[0].Project != "nexus" {
+		t.Errorf("expected nexus first, got %s", results[0].Project)
+	}
+	if results[0].Total != 15000 {
+		t.Errorf("nexus total: want 15000, got %d", results[0].Total)
+	}
+}
+
+func TestQueryByModel(t *testing.T) {
+	db := openTestDB(t)
+	seedSessions(t, db)
+
+	results, err := queryByModel(db, 7)
+	if err != nil {
+		t.Fatalf("queryByModel: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 models, got %d", len(results))
+	}
+}
+
+func TestQueryTopSessions(t *testing.T) {
+	db := openTestDB(t)
+	seedSessions(t, db)
+
+	results, err := queryTopSessions(db, 7)
+	if err != nil {
+		t.Fatalf("queryTopSessions: %v", err)
+	}
+	// s3 is outside 7-day window, so only s1 and s2
+	if len(results) != 2 {
+		t.Fatalf("expected 2 sessions, got %d", len(results))
+	}
+	// s1 has 15000 total, s2 has 8500 — s1 first
+	if results[0].Project != "nexus" {
+		t.Errorf("expected nexus first, got %s", results[0].Project)
+	}
+}
