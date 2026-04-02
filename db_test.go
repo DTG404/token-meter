@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"path/filepath"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -18,6 +19,21 @@ func openTestDB(t *testing.T) *sql.DB {
 	}
 	t.Cleanup(func() { db.Close() })
 	return db
+}
+
+func TestOpenDBAt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := openDBAt(path)
+	if err != nil {
+		t.Fatalf("openDBAt: %v", err)
+	}
+	defer db.Close()
+	// verify schema was initialized
+	var name string
+	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'").Scan(&name)
+	if err != nil {
+		t.Fatalf("sessions table not found: %v", err)
+	}
 }
 
 func TestInitSchema(t *testing.T) {

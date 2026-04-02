@@ -48,6 +48,9 @@ func parseJSONL(path string) ([]Entry, error) {
 
 // encodePath converts an absolute path to Claude Code's project directory encoding.
 // e.g. /home/digitalghost -> home-digitalghost
+// Note: this encoding is lossy — hyphens in directory names are
+// indistinguishable from path separators (e.g. /a/b-c and /a-b/c both
+// encode to "a-b-c"). This matches Claude Code's own encoding scheme.
 func encodePath(absPath string) string {
 	encoded := strings.ReplaceAll(absPath, "/", "-")
 	return strings.TrimPrefix(encoded, "-")

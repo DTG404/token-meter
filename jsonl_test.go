@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -71,7 +70,10 @@ func TestEncodePathRoundTrip(t *testing.T) {
 
 func TestParseJSONLSkipsMalformed(t *testing.T) {
 	content := "not json\n{\"type\":\"user\",\"sessionId\":\"s1\",\"cwd\":\"/tmp\",\"timestamp\":\"2026-04-02T10:00:00.000Z\"}\n"
-	f, _ := os.CreateTemp(t.TempDir(), "*.jsonl")
+	f, err := os.CreateTemp(t.TempDir(), "*.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
 	f.WriteString(content)
 	f.Close()
 
@@ -83,6 +85,3 @@ func TestParseJSONLSkipsMalformed(t *testing.T) {
 		t.Errorf("expected 1 valid entry, got %d", len(entries))
 	}
 }
-
-// silence unused import warning during test compilation
-var _ = filepath.Join
