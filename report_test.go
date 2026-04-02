@@ -28,8 +28,8 @@ func TestFormatNum(t *testing.T) {
 func TestBarChart(t *testing.T) {
 	// 50% of 100 total should yield 10 blocks (each block = 5%)
 	got := barChart(50, 100)
-	if !strings.Contains(got, "██████████") {
-		t.Errorf("50%% bar should have 10 blocks, got: %q", got)
+	if got != strings.Repeat("█", 10) {
+		t.Errorf("barChart(50, 100): want 10 blocks, got: %q", got)
 	}
 	// 0% should yield empty bar
 	got = barChart(0, 100)

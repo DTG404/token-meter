@@ -49,17 +49,6 @@ func aggregateTokens(entries []Entry) SessionRow {
 	return row
 }
 
-// shortModel returns a short model name for display/Nexus notes.
-// e.g. "claude-sonnet-4-6" -> "sonnet", "claude-haiku-4-5-20251001" -> "haiku"
-func shortModel(model string) string {
-	for _, name := range []string{"haiku", "sonnet", "opus"} {
-		if strings.Contains(model, name) {
-			return name
-		}
-	}
-	return model
-}
-
 // findLatestJSONL returns the most recently modified top-level JSONL file
 // in the Claude project directory for the given absolute project path.
 // It excludes subagent files (which are in subdirectories).

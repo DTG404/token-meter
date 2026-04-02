@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"testing"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -118,23 +119,29 @@ func TestUpsertIdempotent(t *testing.T) {
 
 func seedSessions(t *testing.T, db *sql.DB) {
 	t.Helper()
+	now := time.Now().UTC()
+	todayStr := func(hour, min int) string {
+		return time.Date(now.Year(), now.Month(), now.Day(), hour, min, 0, 0, time.UTC).Format(time.RFC3339)
+	}
+	oldStr := now.AddDate(0, 0, -8).Format(time.RFC3339)
+
 	rows := []SessionRow{
 		{
 			SessionID: "s1", Project: "nexus", Model: "claude-sonnet-4-6",
-			StartedAt: "2026-04-02T08:00:00Z", EndedAt: "2026-04-02T08:30:00Z",
+			StartedAt: todayStr(8, 0), EndedAt: todayStr(8, 30),
 			InputTokens: 10000, OutputTokens: 1000, CacheCreationTokens: 2000, CacheReadTokens: 5000,
 			SubagentCount: 2,
 		},
 		{
 			SessionID: "s2", Project: "digitalghost", Model: "claude-haiku-4-5",
-			StartedAt: "2026-04-02T09:00:00Z", EndedAt: "2026-04-02T09:15:00Z",
+			StartedAt: todayStr(9, 0), EndedAt: todayStr(9, 15),
 			InputTokens: 500, OutputTokens: 100, CacheCreationTokens: 0, CacheReadTokens: 8000,
 			SubagentCount: 0,
 		},
 		{
 			// older session — 8 days ago, outside 7-day window
 			SessionID: "s3", Project: "nexus", Model: "claude-sonnet-4-6",
-			StartedAt: "2026-03-25T10:00:00Z", EndedAt: "2026-03-25T10:10:00Z",
+			StartedAt: oldStr, EndedAt: oldStr,
 			InputTokens: 99999, OutputTokens: 9999, CacheCreationTokens: 0, CacheReadTokens: 0,
 			SubagentCount: 0,
 		},
@@ -197,5 +204,57 @@ func TestQueryTopSessions(t *testing.T) {
 	// s1 has 15000 total, s2 has 8500 — s1 first
 	if results[0].Project != "nexus" {
 		t.Errorf("expected nexus first, got %s", results[0].Project)
+	}
+}
+
+func TestQueryToday(t *testing.T) {
+	db := openTestDB(t)
+	seedSessions(t, db)
+
+	got, err := queryToday(db)
+	if err != nil {
+		t.Fatalf("queryToday: %v", err)
+	}
+	// s1 and s2 are from today; s3 is 8 days ago
+	if got.Sessions != 2 {
+		t.Errorf("sessions: want 2, got %d", got.Sessions)
+	}
+	if got.Subagents != 2 {
+		t.Errorf("subagents: want 2 (from s1), got %d", got.Subagents)
+	}
+	// input: 10000 + 500 = 10500
+	if got.Input != 10500 {
+		t.Errorf("input: want 10500, got %d", got.Input)
+	}
+	// cache_read: 5000 + 8000 = 13000
+	if got.CacheRead != 13000 {
+		t.Errorf("cache_read: want 13000, got %d", got.CacheRead)
+	}
+	// cache pct: 13000 / (10500 + 13000) = 55%
+	if got.CachePct < 54 || got.CachePct > 56 {
+		t.Errorf("cache_pct: want ~55, got %d", got.CachePct)
+	}
+}
+
+func TestQueryRolling(t *testing.T) {
+	db := openTestDB(t)
+	seedSessions(t, db)
+
+	// 7-day window: s1 + s2 only (s3 is 8 days ago)
+	got, err := queryRolling(db, 7)
+	if err != nil {
+		t.Fatalf("queryRolling(7): %v", err)
+	}
+	if got.Input != 10500 {
+		t.Errorf("7d input: want 10500, got %d", got.Input)
+	}
+
+	// 30-day window: all 3 sessions
+	got30, err := queryRolling(db, 30)
+	if err != nil {
+		t.Fatalf("queryRolling(30): %v", err)
+	}
+	if got30.Input != 110499 {
+		t.Errorf("30d input: want 110499 (10000+500+99999), got %d", got30.Input)
 	}
 }

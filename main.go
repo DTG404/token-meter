@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 )
 
 func main() {
@@ -54,7 +53,3 @@ Usage:
 `)
 }
 
-// init ensures time package is used (referenced by report.go's todayDate).
-func init() {
-	_ = time.Now
-}

@@ -33,6 +33,17 @@ func barChart(modelTotal, grandTotal int) string {
 	return strings.Repeat("█", blocks)
 }
 
+// shortModel returns a short model name for display/Nexus notes.
+// e.g. "claude-sonnet-4-6" -> "sonnet", "claude-haiku-4-5-20251001" -> "haiku"
+func shortModel(model string) string {
+	for _, name := range []string{"haiku", "sonnet", "opus"} {
+		if strings.Contains(model, name) {
+			return name
+		}
+	}
+	return model
+}
+
 // runReport queries the DB and prints the token usage report.
 func runReport(days int) error {
 	db, err := openDB()

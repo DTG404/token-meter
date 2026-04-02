@@ -29,11 +29,7 @@ func openDB() (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(home, relDBPath)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return nil, err
-	}
-	return openDBAt(path)
+	return openDBAt(filepath.Join(home, relDBPath))
 }
 
 func openDBAt(path string) (*sql.DB, error) {
