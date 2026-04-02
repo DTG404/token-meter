@@ -56,9 +56,9 @@ func TestEncodePathRoundTrip(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"/home/digitalghost", "home-digitalghost"},
-		{"/home/digitalghost/projects/nexus", "home-digitalghost-projects-nexus"},
-		{"/home/digitalghost/projects/dtg-obsidian-mcp", "home-digitalghost-projects-dtg-obsidian-mcp"},
+		{"/home/digitalghost", "-home-digitalghost"},
+		{"/home/digitalghost/projects/nexus", "-home-digitalghost-projects-nexus"},
+		{"/home/digitalghost/projects/dtg-obsidian-mcp", "-home-digitalghost-projects-dtg-obsidian-mcp"},
 	}
 	for _, c := range cases {
 		got := encodePath(c.input)
