@@ -1502,7 +1502,7 @@ git commit -m "feat: wire up main entry point and install token-meter"
 **Files:**
 - Modify: `~/.claude/settings.json`
 
-- [ ] **Step 1: Read current settings**
+- [x] **Step 1: Read current settings**
 
 ```bash
 cat ~/.claude/settings.json
@@ -1510,7 +1510,7 @@ cat ~/.claude/settings.json
 
 Verify the current `hooks` section structure before editing.
 
-- [ ] **Step 2: Add Stop hook**
+- [x] **Step 2: Add Stop hook**
 
 Edit `~/.claude/settings.json`. Add a `"Stop"` key to the `"hooks"` object alongside the existing `"PreToolUse"` and `"SessionStart"` keys:
 
@@ -1550,7 +1550,7 @@ The final `hooks` section should look like:
 }
 ```
 
-- [ ] **Step 3: Validate JSON**
+- [x] **Step 3: Validate JSON**
 
 ```bash
 python3 -m json.tool ~/.claude/settings.json > /dev/null && echo "valid JSON"
@@ -1558,7 +1558,7 @@ python3 -m json.tool ~/.claude/settings.json > /dev/null && echo "valid JSON"
 
 Expected: `valid JSON`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd ~/projects/token-efficency
